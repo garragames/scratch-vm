@@ -15,19 +15,6 @@ const { Console } = require('minilog');
 const blockIconURI = 'data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDI0LjMuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkNhcGFfMyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgeD0iMHB4IiB5PSIwcHgiCgkgd2lkdGg9IjQwcHgiIGhlaWdodD0iNDBweCIgdmlld0JveD0iMCAwIDQwIDQwIiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCA0MCA0MCIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+CjxnIGlkPSJGYWNlXzJfIj4KCTxlbGxpcHNlIGZpbGw9IiMxQTI3MkMiIHN0cm9rZT0iI0ZGRkZGRiIgc3Ryb2tlLW1pdGVybGltaXQ9IjEwIiBjeD0iMjAiIGN5PSIyMCIgcng9IjE5LjQiIHJ5PSIxOS40Ii8+Cgk8ZyBpZD0iQ2FwYV81XzFfIj4KCQk8ZyBpZD0iT2pvc18xXyI+CgkJCTxwYXRoIGZpbGw9IiNGRkZGRkYiIGQ9Ik0xMC43LDIzLjdjLTIuOCwwLTUuMS0yLjMtNS4xLTUuMXMyLjMtNS4xLDUuMS01LjFzNS4xLDIuMyw1LjEsNS4xUzEzLjUsMjMuNywxMC43LDIzLjd6IE0xMC43LDE0LjYKCQkJCWMtMi4yLDAtNCwxLjgtNCw0czEuOCw0LDQsNHM0LTEuOCw0LTRTMTIuOSwxNC42LDEwLjcsMTQuNnoiLz4KCQkJPHBhdGggZmlsbD0iI0ZGRkZGRiIgZD0iTTI4LjQsMjMuN2MtMi44LDAtNS4xLTIuMy01LjEtNS4xczIuMy01LjEsNS4xLTUuMXM1LjEsMi4zLDUuMSw1LjFTMzEuMiwyMy43LDI4LjQsMjMuN3ogTTI4LjQsMTQuNgoJCQkJYy0yLjIsMC00LDEuOC00LDRzMS44LDQsNCw0czQtMS44LDQtNFMzMC42LDE0LjYsMjguNCwxNC42eiIvPgoJCTwvZz4KCQk8ZyBpZD0iQm9jYV8xXyI+CgkJCTxwYXRoIGZpbGw9IiNGRkZGRkYiIGQ9Ik0yMC4xLDMwLjFoLTAuMWMtMi4xLTAuMS0zLjctMS4zLTMuNy0yLjloMS4yYzAsMC45LDEuMiwxLjcsMi42LDEuN2MxLjQsMCwyLjYtMC44LDIuNi0xLjdoMS4xCgkJCQlDMjMuOCwyOC44LDIyLjIsMzAuMSwyMC4xLDMwLjFMMjAuMSwzMC4xeiIvPgoJCTwvZz4KCQk8ZyBpZD0iQnJpbGxvXzFfIj4KCQkJPGVsbGlwc2UgZmlsbD0iI0ZGRkZGRiIgY3g9IjkuNyIgY3k9IjE4LjIiIHJ4PSIxLjMiIHJ5PSIxLjMiLz4KCQkJPGVsbGlwc2UgZmlsbD0iI0ZGRkZGRiIgY3g9IjI3LjEiIGN5PSIxOC4yIiByeD0iMS4zIiByeT0iMS4zIi8+CgkJPC9nPgoJPC9nPgo8L2c+Cjwvc3ZnPgo=';
 
 /**
- * Enum for kori BLE command protocol.
- * https://github.com/scratchfoundation/scratch-microbit-firmware/blob/master/protocol.md
- * @readonly
- * @enum {number}
- */
-const BLECommand = {
-    CMD_PIN_CONFIG: 0x80,
-    CMD_DISPLAY_TEXT: 0x81,
-    CMD_DISPLAY_LED: 0x82
-};
-
-
-/**
  * A time interval to wait (in milliseconds) before reporting to the BLE socket
  * that data has stopped coming from the peripheral.
  */
@@ -162,50 +149,7 @@ class Kori {
         for (let i = 0; i < text.length; i++) {
             output[i] = text.charCodeAt(i);
         }
-        return this.send(BLECommand.CMD_DISPLAY_TEXT, output);
-    }
-
-    /**
-     * @param {Uint8Array} matrix - the matrix to display.
-     * @return {Promise} - a Promise that resolves when writing to peripheral.
-     */
-    displayMatrix (matrix) {
-        return this.send(BLECommand.CMD_DISPLAY_LED, matrix);
-    }
-
-    /**
-     * @return {number} - the latest value received for the tilt sensor's tilt about the X axis.
-     */
-    get tiltX () {
-        return this._sensors.tiltX;
-    }
-
-    /**
-     * @return {number} - the latest value received for the tilt sensor's tilt about the Y axis.
-     */
-    get tiltY () {
-        return this._sensors.tiltY;
-    }
-
-    /**
-     * @return {boolean} - the latest value received for the A button.
-     */
-    get buttonA () {
-        return this._sensors.buttonA;
-    }
-
-    /**
-     * @return {boolean} - the latest value received for the B button.
-     */
-    get buttonB () {
-        return this._sensors.buttonB;
-    }
-
-    /**
-     * @return {number} - the latest value received for the motion gesture states.
-     */
-    get gestureState () {
-        return this._sensors.gestureState;
+        return this.send(output);
     }
 
     /**
@@ -277,7 +221,7 @@ class Kori {
      * @param {number} command - the BLE command hex.
      * @param {Uint8Array} message - the message to write
      */
-    send (command, message) {
+    send (message) {
         if (!this.isConnected()) return;
         if (this._busy) return;
 
@@ -394,40 +338,7 @@ class Kori {
             this.fullMessage += message;
         }
     }
-
-    /**
-     * @param {number} pin - the pin to check touch state.
-     * @return {number} - the latest value received for the touch pin states.
-     * @private
-     */
-    _checkPinState (pin) {
-        return this._sensors.touchPins[pin];
-    }
 }
-
-/**
- * Enum for tilt sensor direction.
- * @readonly
- * @enum {string}
- */
-const KoriTiltDirection = {
-    FRONT: 'front',
-    BACK: 'back',
-    LEFT: 'left',
-    RIGHT: 'right',
-    ANY: 'any'
-};
-
-/**
- * Enum for kori gestures.
- * @readonly
- * @enum {string}
- */
-const KoriGestures = {
-    MOVED: 'moved',
-    SHAKEN: 'shaken',
-    JUMPED: 'jumped'
-};
 
 /**
  * Enum for kori events.
@@ -442,27 +353,6 @@ const KoriEvents = {
     PLAY: 'play',
     TOUCH: 'touch'
 }
-
-/**
- * Enum for kori buttons.
- * @readonly
- * @enum {string}
- */
-const KoriButtons = {
-    A: 'A',
-    B: 'B',
-    ANY: 'any'
-};
-
-/**
- * Enum for kori pin states.
- * @readonly
- * @enum {string}
- */
-const KoriPinState = {
-    ON: 'on',
-    OFF: 'off'
-};
 
 /**
  * Scratch 3.0 blocks to interact with a Kori peripheral.
@@ -483,40 +373,6 @@ class Scratch3KoriBlocks {
         return 'kori';
     }
 
-    /**
-     * @return {number} - the tilt sensor counts as "tilted" if its tilt angle meets or exceeds this threshold.
-     */
-    static get TILT_THRESHOLD () {
-        return 15;
-    }
-
-    /**
-     * @return {array} - text and values for each buttons menu element
-     */
-    get BUTTONS_MENU () {
-        return [
-            {
-                text: 'A',
-                value: KoriButtons.A
-            },
-            {
-                text: 'B',
-                value: KoriButtons.B
-            },
-            {
-                text: formatMessage({
-                    id: 'kori.buttonsMenu.any',
-                    default: 'any',
-                    description: 'label for "any" element in button picker for kori extension'
-                }),
-                value: KoriButtons.ANY
-            }
-        ];
-    }
-
-    /**
-     * @return {array} - text and values for each events menu element
-     */
     get EVENTS_MENU () {
         return [
             {
@@ -568,119 +424,6 @@ class Scratch3KoriBlocks {
                 value: KoriEvents.TOUCH
             }
         ]
-    }
-
-    /**
-     * @return {array} - text and values for each gestures menu element
-     */
-    get GESTURES_MENU () {
-        return [
-            {
-                text: formatMessage({
-                    id: 'kori.gesturesMenu.moved',
-                    default: 'moved',
-                    description: 'label for moved gesture in gesture picker for kori extension'
-                }),
-                value: KoriGestures.MOVED
-            },
-            {
-                text: formatMessage({
-                    id: 'kori.gesturesMenu.shaken',
-                    default: 'shaken',
-                    description: 'label for shaken gesture in gesture picker for kori extension'
-                }),
-                value: KoriGestures.SHAKEN
-            },
-            {
-                text: formatMessage({
-                    id: 'kori.gesturesMenu.jumped',
-                    default: 'jumped',
-                    description: 'label for jumped gesture in gesture picker for kori extension'
-                }),
-                value: KoriGestures.JUMPED
-            }
-        ];
-    }
-
-    /**
-     * @return {array} - text and values for each pin state menu element
-     */
-    get PIN_STATE_MENU () {
-        return [
-            {
-                text: formatMessage({
-                    id: 'kori.pinStateMenu.on',
-                    default: 'on',
-                    description: 'label for on element in pin state picker for kori extension'
-                }),
-                value: KoriPinState.ON
-            },
-            {
-                text: formatMessage({
-                    id: 'kori.pinStateMenu.off',
-                    default: 'off',
-                    description: 'label for off element in pin state picker for kori extension'
-                }),
-                value: KoriPinState.OFF
-            }
-        ];
-    }
-
-    /**
-     * @return {array} - text and values for each tilt direction menu element
-     */
-    get TILT_DIRECTION_MENU () {
-        return [
-            {
-                text: formatMessage({
-                    id: 'kori.tiltDirectionMenu.front',
-                    default: 'front',
-                    description: 'label for front element in tilt direction picker for kori extension'
-                }),
-                value: KoriTiltDirection.FRONT
-            },
-            {
-                text: formatMessage({
-                    id: 'kori.tiltDirectionMenu.back',
-                    default: 'back',
-                    description: 'label for back element in tilt direction picker for kori extension'
-                }),
-                value: KoriTiltDirection.BACK
-            },
-            {
-                text: formatMessage({
-                    id: 'kori.tiltDirectionMenu.left',
-                    default: 'left',
-                    description: 'label for left element in tilt direction picker for kori extension'
-                }),
-                value: KoriTiltDirection.LEFT
-            },
-            {
-                text: formatMessage({
-                    id: 'kori.tiltDirectionMenu.right',
-                    default: 'right',
-                    description: 'label for right element in tilt direction picker for kori extension'
-                }),
-                value: KoriTiltDirection.RIGHT
-            }
-        ];
-    }
-
-    /**
-     * @return {array} - text and values for each tilt direction (plus "any") menu element
-     */
-    get TILT_DIRECTION_ANY_MENU () {
-        return [
-            ...this.TILT_DIRECTION_MENU,
-            {
-                text: formatMessage({
-                    id: 'kori.tiltDirectionMenu.any',
-                    default: 'any',
-                    description: 'label for any direction element in tilt direction picker for kori extension'
-                }),
-                value: KoriTiltDirection.ANY
-            }
-        ];
     }
 
     /**
@@ -741,24 +484,10 @@ class Scratch3KoriBlocks {
                             defaultValue: formatMessage({
                                 id: 'kori.defaultTextToDisplay',
                                 default: 'Hello!',
-                                description: `default text to display.
-                                IMPORTANT - the kori only supports letters a-z, A-Z.
-                                Please substitute a default word in your language
-                                that can be written with those characters,
-                                substitute non-accented characters or leave it as "Hello!".
-                                Check the kori site documentation for details`
+                                description: `default text to display.`
                             })
                         }
                     }
-                },
-                {
-                    opcode: 'displayClear',
-                    text: formatMessage({
-                        id: 'kori.clearDisplay',
-                        default: 'clear display',
-                        description: 'display nothing on the kori display'
-                    }),
-                    blockType: BlockType.COMMAND
                 },
                 {
                     opcode: 'ask',
@@ -781,92 +510,14 @@ class Scratch3KoriBlocks {
                 }
             ],
             menus: {
-                buttons: {
-                    acceptReporters: true,
-                    items: this.BUTTONS_MENU
-                },
-                gestures: {
-                    acceptReporters: true,
-                    items: this.GESTURES_MENU
-                },
                 events: {
                     acceptReporters: true,
                     items: this.EVENTS_MENU
                 },
-                pinState: {
-                    acceptReporters: true,
-                    items: this.PIN_STATE_MENU
-                },
-                tiltDirection: {
-                    acceptReporters: true,
-                    items: this.TILT_DIRECTION_MENU
-                },
-                tiltDirectionAny: {
-                    acceptReporters: true,
-                    items: this.TILT_DIRECTION_ANY_MENU
-                },
-                touchPins: {
-                    acceptReporters: true,
-                    items: ['0', '1', '2']
-                }
             }
         };
     }
 
-    /**
-     * Test whether the A or B button is pressed
-     * @param {object} args - the block's arguments.
-     * @return {boolean} - true if the button is pressed.
-     */
-    whenButtonPressed (args) {
-        if (args.BTN === 'any') {
-            return this._peripheral.buttonA | this._peripheral.buttonB;
-        } else if (args.BTN === 'A') {
-            return this._peripheral.buttonA;
-        } else if (args.BTN === 'B') {
-            return this._peripheral.buttonB;
-        }
-        return false;
-    }
-
-    /**
-     * Test whether the A or B button is pressed
-     * @param {object} args - the block's arguments.
-     * @return {boolean} - true if the button is pressed.
-     */
-    isButtonPressed (args) {
-        if (args.BTN === 'any') {
-            return (this._peripheral.buttonA | this._peripheral.buttonB) !== 0;
-        } else if (args.BTN === 'A') {
-            return this._peripheral.buttonA !== 0;
-        } else if (args.BTN === 'B') {
-            return this._peripheral.buttonB !== 0;
-        }
-        return false;
-    }
-
-    /**
-     * Test whether the kori is moving
-     * @param {object} args - the block's arguments.
-     * @return {boolean} - true if the kori is moving.
-     */
-    whenGesture (args) {
-        const gesture = cast.toString(args.GESTURE);
-        if (gesture === 'moved') {
-            return (this._peripheral.gestureState >> 2) & 1;
-        } else if (gesture === 'shaken') {
-            return this._peripheral.gestureState & 1;
-        } else if (gesture === 'jumped') {
-            return (this._peripheral.gestureState >> 1) & 1;
-        }
-        return false;
-    }
-
-    /**
-     * Test whether the kori is generating an event
-     * @param {object} args - the block's arguments.
-     * @returns {boolean} - true if the event is detected.
-     */
     whenEvent (args) {
         const event = cast.toString(args.EVENT);
         if (event === 'wake') {
@@ -883,34 +534,6 @@ class Scratch3KoriBlocks {
             return (this._peripheral.gestureState >> 8) & 1;
         }
         return false;
-    }
-
-    /**
-     * Display a predefined symbol on the 5x5 LED matrix.
-     * @param {object} args - the block's arguments.
-     * @return {Promise} - a Promise that resolves after a tick.
-     */
-    displaySymbol (args) {
-        const symbol = cast.toString(args.MATRIX).replace(/\s/g, '');
-        const reducer = (accumulator, c, index) => {
-            const value = (c === '0') ? accumulator : accumulator + Math.pow(2, index);
-            return value;
-        };
-        const hex = symbol.split('').reduce(reducer, 0);
-        if (hex !== null) {
-            this._peripheral.ledMatrixState[0] = hex & 0x1F;
-            this._peripheral.ledMatrixState[1] = (hex >> 5) & 0x1F;
-            this._peripheral.ledMatrixState[2] = (hex >> 10) & 0x1F;
-            this._peripheral.ledMatrixState[3] = (hex >> 15) & 0x1F;
-            this._peripheral.ledMatrixState[4] = (hex >> 20) & 0x1F;
-            this._peripheral.displayMatrix(this._peripheral.ledMatrixState);
-        }
-
-        return new Promise(resolve => {
-            setTimeout(() => {
-                resolve();
-            }, BLESendInterval);
-        });
     }
 
     /**
@@ -938,23 +561,6 @@ class Scratch3KoriBlocks {
     }
 
     /**
-     * Turn all 5x5 matrix LEDs off.
-     * @return {Promise} - a Promise that resolves after a tick.
-     */
-    displayClear () {
-        for (let i = 0; i < 5; i++) {
-            this._peripheral.ledMatrixState[i] = 0;
-        }
-        this._peripheral.displayMatrix(this._peripheral.ledMatrixState);
-
-        return new Promise(resolve => {
-            setTimeout(() => {
-                resolve();
-            }, BLESendInterval);
-        });
-    }
-
-    /**
      * 
      * @param {object} args 
      */
@@ -963,85 +569,6 @@ class Scratch3KoriBlocks {
         //const event = KoriEvents.WAKE;
         //this._peripheral.send(event, question);
         console.log(question);
-    }
-
-    /**
-     * Test whether the tilt sensor is currently tilted.
-     * @param {object} args - the block's arguments.
-     * @property {TiltDirection} DIRECTION - the tilt direction to test (front, back, left, right, or any).
-     * @return {boolean} - true if the tilt sensor is tilted past a threshold in the specified direction.
-     */
-    whenTilted (args) {
-        return this._isTilted(args.DIRECTION);
-    }
-
-    /**
-     * Test whether the tilt sensor is currently tilted.
-     * @param {object} args - the block's arguments.
-     * @property {TiltDirection} DIRECTION - the tilt direction to test (front, back, left, right, or any).
-     * @return {boolean} - true if the tilt sensor is tilted past a threshold in the specified direction.
-     */
-    isTilted (args) {
-        return this._isTilted(args.DIRECTION);
-    }
-
-    /**
-     * @param {object} args - the block's arguments.
-     * @property {TiltDirection} DIRECTION - the direction (front, back, left, right) to check.
-     * @return {number} - the tilt sensor's angle in the specified direction.
-     * Note that getTiltAngle(front) = -getTiltAngle(back) and getTiltAngle(left) = -getTiltAngle(right).
-     */
-    getTiltAngle (args) {
-        return this._getTiltAngle(args.DIRECTION);
-    }
-
-    /**
-     * Test whether the tilt sensor is currently tilted.
-     * @param {TiltDirection} direction - the tilt direction to test (front, back, left, right, or any).
-     * @return {boolean} - true if the tilt sensor is tilted past a threshold in the specified direction.
-     * @private
-     */
-    _isTilted (direction) {
-        switch (direction) {
-        case KoriTiltDirection.ANY:
-            return (Math.abs(this._peripheral.tiltX / 10) >= Scratch3KoriBlocks.TILT_THRESHOLD) ||
-                (Math.abs(this._peripheral.tiltY / 10) >= Scratch3KoriBlocks.TILT_THRESHOLD);
-        default:
-            return this._getTiltAngle(direction) >= Scratch3KoriBlocks.TILT_THRESHOLD;
-        }
-    }
-
-    /**
-     * @param {TiltDirection} direction - the direction (front, back, left, right) to check.
-     * @return {number} - the tilt sensor's angle in the specified direction.
-     * Note that getTiltAngle(front) = -getTiltAngle(back) and getTiltAngle(left) = -getTiltAngle(right).
-     * @private
-     */
-    _getTiltAngle (direction) {
-        switch (direction) {
-        case KoriTiltDirection.FRONT:
-            return Math.round(this._peripheral.tiltY / -10);
-        case KoriTiltDirection.BACK:
-            return Math.round(this._peripheral.tiltY / 10);
-        case KoriTiltDirection.LEFT:
-            return Math.round(this._peripheral.tiltX / -10);
-        case KoriTiltDirection.RIGHT:
-            return Math.round(this._peripheral.tiltX / 10);
-        default:
-            log.warn(`Unknown tilt direction in _getTiltAngle: ${direction}`);
-        }
-    }
-
-    /**
-     * @param {object} args - the block's arguments.
-     * @return {boolean} - the touch pin state.
-     * @private
-     */
-    whenPinConnected (args) {
-        const pin = parseInt(args.PIN, 10);
-        if (isNaN(pin)) return;
-        if (pin < 0 || pin > 2) return false;
-        return this._peripheral._checkPinState(pin);
     }
 }
 
