@@ -393,6 +393,30 @@ class Kori {
         } else {
             this.fullMessage += message;
         }
+
+
+        /*
+        this._sensors.tiltX = data[1] | (data[0] << 8);
+        if (this._sensors.tiltX > (1 << 15)) this._sensors.tiltX -= (1 << 16);
+        this._sensors.tiltY = data[3] | (data[2] << 8);
+        if (this._sensors.tiltY > (1 << 15)) this._sensors.tiltY -= (1 << 16);
+
+        this._sensors.buttonA = data[4];
+        this._sensors.buttonB = data[5];
+
+        this._sensors.touchPins[0] = data[6];
+        this._sensors.touchPins[1] = data[7];
+        this._sensors.touchPins[2] = data[8];
+
+        this._sensors.gestureState = data[9];
+
+        // cancel disconnect timeout and start a new one
+        window.clearTimeout(this._timeoutID);
+        this._timeoutID = window.setTimeout(
+            () => this._ble.handleDisconnectError(BLEDataStoppedError),
+            BLETimeout
+        );
+        */
     }
 
     /**
@@ -711,6 +735,57 @@ class Scratch3KoriBlocks {
             blockIconURI: blockIconURI,
             showStatusButton: true,
             blocks: [
+                /*
+                {
+                    opcode: 'whenButtonPressed',
+                    text: formatMessage({
+                        id: 'kori.whenButtonPressed',
+                        default: 'when [BTN] button pressed',
+                        description: 'when the selected button on the kori is pressed'
+                    }),
+                    blockType: BlockType.HAT,
+                    arguments: {
+                        BTN: {
+                            type: ArgumentType.STRING,
+                            menu: 'buttons',
+                            defaultValue: KoriButtons.A
+                        }
+                    }
+                },
+                {
+                    opcode: 'isButtonPressed',
+                    text: formatMessage({
+                        id: 'kori.isButtonPressed',
+                        default: '[BTN] button pressed?',
+                        description: 'is the selected button on the kori pressed?'
+                    }),
+                    blockType: BlockType.BOOLEAN,
+                    arguments: {
+                        BTN: {
+                            type: ArgumentType.STRING,
+                            menu: 'buttons',
+                            defaultValue: KoriButtons.A
+                        }
+                    }
+                },
+                '---',
+                {
+                    opcode: 'whenGesture',
+                    text: formatMessage({
+                        id: 'kori.whenGesture',
+                        default: 'when [GESTURE]',
+                        description: 'when the selected gesture is detected by the kori'
+                    }),
+                    blockType: BlockType.HAT,
+                    arguments: {
+                        GESTURE: {
+                            type: ArgumentType.STRING,
+                            menu: 'gestures',
+                            defaultValue: KoriGestures.MOVED
+                        }
+                    }
+                },
+                */
                 {
                     opcode: 'whenEvent',
                     text: formatMessage({
@@ -727,6 +802,24 @@ class Scratch3KoriBlocks {
                         }
                     }
                 },
+                /*
+                '---',
+                {
+                    opcode: 'displaySymbol',
+                    text: formatMessage({
+                        id: 'kori.displaySymbol',
+                        default: 'display [MATRIX]',
+                        description: 'display a pattern on the kori display'
+                    }),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        MATRIX: {
+                            type: ArgumentType.MATRIX,
+                            defaultValue: '0101010101100010101000100'
+                        }
+                    }
+                },
+                */
                 {
                     opcode: 'displayText',
                     text: formatMessage({
@@ -779,6 +872,75 @@ class Scratch3KoriBlocks {
                         }
                     }
                 }
+                /*
+                '---',
+                {
+                    opcode: 'whenTilted',
+                    text: formatMessage({
+                        id: 'kori.whenTilted',
+                        default: 'when tilted [DIRECTION]',
+                        description: 'when the kori is tilted in a direction'
+                    }),
+                    blockType: BlockType.HAT,
+                    arguments: {
+                        DIRECTION: {
+                            type: ArgumentType.STRING,
+                            menu: 'tiltDirectionAny',
+                            defaultValue: KoriTiltDirection.ANY
+                        }
+                    }
+                },
+                {
+                    opcode: 'isTilted',
+                    text: formatMessage({
+                        id: 'kori.isTilted',
+                        default: 'tilted [DIRECTION]?',
+                        description: 'is the kori is tilted in a direction?'
+                    }),
+                    blockType: BlockType.BOOLEAN,
+                    arguments: {
+                        DIRECTION: {
+                            type: ArgumentType.STRING,
+                            menu: 'tiltDirectionAny',
+                            defaultValue: KoriTiltDirection.ANY
+                        }
+                    }
+                },
+                {
+                    opcode: 'getTiltAngle',
+                    text: formatMessage({
+                        id: 'kori.tiltAngle',
+                        default: 'tilt angle [DIRECTION]',
+                        description: 'how much the kori is tilted in a direction'
+                    }),
+                    blockType: BlockType.REPORTER,
+                    arguments: {
+                        DIRECTION: {
+                            type: ArgumentType.STRING,
+                            menu: 'tiltDirection',
+                            defaultValue: KoriTiltDirection.FRONT
+                        }
+                    }
+                },
+                '---',
+                {
+                    opcode: 'whenPinConnected',
+                    text: formatMessage({
+                        id: 'kori.whenPinConnected',
+                        default: 'when pin [PIN] connected',
+                        description: 'when the pin detects a connection to Earth/Ground'
+
+                    }),
+                    blockType: BlockType.HAT,
+                    arguments: {
+                        PIN: {
+                            type: ArgumentType.STRING,
+                            menu: 'touchPins',
+                            defaultValue: '0'
+                        }
+                    }
+                }
+                    */
             ],
             menus: {
                 buttons: {
