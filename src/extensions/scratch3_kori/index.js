@@ -6,6 +6,7 @@ const formatMessage = require('format-message');
 const BLE = require('../../io/ble');
 const Base64Util = require('../../util/base64-util');
 const { Console } = require('minilog');
+const EventEmitter = require('events');
 
 /**
  * Icon png to be displayed at the left edge of each extension block, encoded as a data URI.
@@ -26,6 +27,10 @@ const BLETimeout = 4500;
  */
 const BLESendInterval = 100;
 
+let emitter = new EventEmitter();
+let dataBuffer = Buffer.alloc(0); // Inicializa un buffer vacío
+let eventIndex = 0;
+
 /**
  * A string to report to the BLE socket when the kori has stopped receiving data.
  * @type {string}
@@ -45,6 +50,107 @@ const BLEUUID = {
 };
 
 /**
+ * Enum for kori events.
+ * @readonly
+ * @enum {string}
+ */
+const KoriEvents = {
+    WAKE: 'wake',
+    TRANSCRIBE: 'transcribe',
+    GENERATE: 'generate',
+    SYNTHESIZE: 'synthesize',
+    PLAY: 'play',
+    TOUCH: 'touch'
+}
+
+/**
+ * Enum for network information.
+ * @readonly
+ * @enum {string}
+ */
+const network = {
+    SSID: 'ssid',
+    PSK: 'psk',
+    IP: 'ip'
+};
+
+/**
+ * Enum for listen information.
+ * @readonly
+ * @enum {string}
+ */
+const listen = {
+    MODEL: 'model',
+    LANGUAGE: 'language',
+    TEPERATURE: 'temperature'
+};
+
+/**
+ * Enum for think information.
+ * @readonly
+ * @enum {string}
+ */
+const think = {
+    MODEL: 'model',
+    ASSISTANT_ID: 'assistantId',
+    INSTRUCTIONS: 'instructions',
+    TEPERATURE: 'temperature'
+}
+
+/**
+ * Enum for speak information.
+ * @readonly
+ * @enum {string}
+ */
+const speak = {
+    MODEL: 'model',
+    VOICE: 'voice',
+    SPEED: 'speed'
+}
+
+/**
+ * Enum for voice information.
+ * @readonly
+ * @enum {string}
+ */
+const voice = {
+    ALLOY: 'alloy',
+    ECHO: 'echo',
+    FABLE: 'fable',
+    ONYX: 'onyx',
+    NOVA: 'nova',
+    SHIMMER: 'shimmer'
+}
+
+/**
+ * Enum for api information.
+ * @readonly
+ * @enum {string}
+ * 
+ */
+const api = {
+    OPENAI: 'openai',
+    PICOVOICE: 'picovoice'
+};
+
+/**
+ * Enum for personalization information.
+ * @readonly
+ * @enum {string}
+ */
+const personalization = {
+    NAME: 'name',
+    GENDER: 'gender',
+    TYPE: 'type',
+    WAKE_WORD: 'wakeWord'
+}
+
+/**
+ *  Default value for unknown information.
+ */
+const unknown = 'UNINITIALIZED';
+
+/**
  * Manage communication with a Kori peripheral over a Scrath Link client socket.
  */
 class Kori {
@@ -54,7 +160,7 @@ class Kori {
      * @param {Runtime} runtime - the Scratch 3.0 runtime
      * @param {string} extensionId - the id of the extension
      */
-    constructor (runtime, extensionId) {
+    constructor(runtime, extensionId) {
 
         /**
          * The Scratch 3.0 runtime used to trigger the green flag button.
@@ -77,39 +183,70 @@ class Kori {
         this._extensionId = extensionId;
 
         /**
-         * The most recently received value for each sensor.
-         * @type {Object.<string, number>}
+         * The most recently received value for each network information.
+         * @type {Object.<string, string>}
          * @private
          */
-        this._sensors = {
-            tiltX: 0,
-            tiltY: 0,
-            buttonA: 0,
-            buttonB: 0,
-            touchPins: [0, 0, 0],
-            gestureState: 0,
-            ledMatrixState: new Uint8Array(5)
+        this._network = {
+            ssid: unknown,
+            psk: unknown,
+            ip: unknown
         };
 
         /**
-         * The most recently received value for each gesture.
-         * @type {Object.<string, Object>}
+         * The most recently received value for each listen information.
+         * @type {Object.<string, string>}
          * @private
          */
-        this._gestures = {
-            moving: false,
-            move: {
-                active: false,
-                timeout: false
-            },
-            shake: {
-                active: false,
-                timeout: false
-            },
-            jump: {
-                active: false,
-                timeout: false
-            }
+        this._listen = {
+            model: unknown,
+            language: unknown,
+            temperature: unknown
+        };
+
+        /**
+         * The most recently received value for each think information.
+         * @type {Object.<string, string>}
+         * @private
+         */
+        this._think = {
+            model: unknown,
+            assistantId: unknown,
+            instructions: unknown,
+            temperature: unknown
+        };
+
+        /**
+         * The most recently received value for each speak information.
+         * @type {Object.<string, string>}
+         * @private
+         */
+        this._speak = {
+            model: unknown,
+            voice: unknown,
+            speed: unknown
+        };
+
+        /**
+         * The most recently received value for each api information.
+         * @type {Object.<string, string>}
+         * @private
+         */
+        this._api = {
+            openai: unknown,
+            picovoice: unknown
+        };
+
+        /**
+         * The most recently received value for each personalization information.
+         * @type {Object.<string, string>}
+         * @private
+         */
+        this._personalization = {
+            name: unknown,
+            gender: unknown,
+            type: unknown,
+            wakeWord: unknown
         };
 
         /**
@@ -144,7 +281,7 @@ class Kori {
      * @param {string} text - the text to display.
      * @return {Promise} - a Promise that resolves when writing to peripheral.
      */
-    displayText (text) {
+    displayText(text) {
         const output = new Uint8Array(text.length);
         for (let i = 0; i < text.length; i++) {
             output[i] = text.charCodeAt(i);
@@ -153,22 +290,15 @@ class Kori {
     }
 
     /**
-     * @return {Uint8Array} - the current state of the 5x5 LED matrix.
-     */
-    get ledMatrixState () {
-        return this._sensors.ledMatrixState;
-    }
-
-    /**
      * Called by the runtime when user wants to scan for a peripheral.
      */
-    scan () {
+    scan() {
         if (this._ble) {
             this._ble.disconnect();
         }
         this._ble = new BLE(this._runtime, this._extensionId, {
             filters: [
-                {services: [BLEUUID.service]}
+                { services: [BLEUUID.service] }
             ]
         }, this._onConnect, this.reset);
     }
@@ -177,7 +307,7 @@ class Kori {
      * Called by the runtime when user wants to connect to a certain peripheral.
      * @param {number} id - the id of the peripheral to connect to.
      */
-    connect (id) {
+    connect(id) {
         if (this._ble) {
             this._ble.connectPeripheral(id);
         }
@@ -186,7 +316,7 @@ class Kori {
     /**
      * Disconnect from the kori.
      */
-    disconnect () {
+    disconnect() {
         if (this._ble) {
             this._ble.disconnect();
         }
@@ -197,7 +327,7 @@ class Kori {
     /**
      * Reset all the state and timeout/interval ids.
      */
-    reset () {
+    reset() {
         if (this._timeoutID) {
             window.clearTimeout(this._timeoutID);
             this._timeoutID = null;
@@ -208,7 +338,7 @@ class Kori {
      * Return true if connected to the kori.
      * @return {boolean} - whether the kori is connected.
      */
-    isConnected () {
+    isConnected() {
         let connected = false;
         if (this._ble) {
             connected = this._ble.isConnected();
@@ -216,12 +346,16 @@ class Kori {
         return connected;
     }
 
+    _reset() {
+        this._busy = false;
+        window.clearTimeout(this._busyTimeoutID);
+    }
+
     /**
      * Send a message to the peripheral BLE socket.
-     * @param {number} command - the BLE command hex.
      * @param {Uint8Array} message - the message to write
      */
-    send (message) {
+    send(message) {
         if (!this.isConnected()) return;
         if (this._busy) return;
 
@@ -236,65 +370,41 @@ class Kori {
         this._busyTimeoutID = window.setTimeout(() => {
             this._busy = false;
         }, 5000);
-
         const output = new Uint8Array(message.length + 1);
-        //output[0] = command; // attach command to beginning of message
+
         for (let i = 0; i < message.length; i++) {
             output[i] = message[i];
         }
         output[message.length + 1] = '\0'; // null terminator
-
         const data = Base64Util.uint8ArrayToBase64(output);
 
-        this._ble.write(BLEUUID.service, BLEUUID.txChar, data, 'base64', true).then(
-            () => {
-                this._busy = false;
-                window.clearTimeout(this._busyTimeoutID);
-            }
-        );
-    }
-
-    _reset () {
-        this._busy = false;
-        window.clearTimeout(this._busyTimeoutID);
-    }
-
-    send2(cmd) {
-
         return new Promise(async (resolve) => {
-            let cmdChunks = [];
-            for (let i = 0; i < cmd.length; i += 20) {
-                cmdChunks.push(cmd.substring(i, i + 20));
+            let chunks = [];
+            for (let i = 0; i < data.length; i += 180) {
+                chunks.push(data.substring(i, i + 180));
             }
 
-            for (let chunk of cmdChunks) {
+            for (let chunk of chunks) {
                 await this.sendChunk(chunk);
                 await new Promise(r => setTimeout(r, 200)); // Espera 200ms
             }
-
-            emitter.once('response', () => {
-                resolve();
-            });
+            resolve();
         });
     }
 
     // UTILITIES
 
     async sendChunk(chunk) {
-        let this2 = this;
-        const output = new Uint8Array(chunk.length);
-        for (let i = 0; i < chunk.length; i++) {
-            output[i] = chunk[i];
-        }
-
-        const data = Base64Util.uint8ArrayToBase64(output);
         return new Promise((resolve, reject) => {
-            this._ble.write(BLEUUID.service, BLEUUID.txChar, data, 'base64', true).then(
-                function () {
-                    this2._busy = false;
-                    window.clearTimeout(this2._busyTimeoutID);
+            this._ble.write(BLEUUID.service, BLEUUID.txChar, chunk, 'base64', true).then(
+                () => {
+                    this._busy = false;
+                    window.clearTimeout(this._busyTimeoutID);
+                    resolve();
                 }
-            );
+            ).catch(err => {
+                reject(err);
+            });
         });
     }
 
@@ -302,7 +412,7 @@ class Kori {
      * Starts reading data from peripheral after BLE has connected to it.
      * @private
      */
-    _onConnect () {
+    _onConnect() {
 
         this._ble.startNotifications(BLEUUID.service, BLEUUID.rxChar, this._onMessage);
         this._ble.didReceiveCall('read', { serviceId: BLEUUID.service, characteristicId: BLEUUID.rxChar });
@@ -313,45 +423,28 @@ class Kori {
         //);
     }
 
-    /**
-     * Process the sensor data from the incoming BLE characteristic.
-     * @param {object} base64 - the incoming BLE data.
-     * @private
-     */
-    //_onMessage (base64) {
-    _onMessage (data) {
-        //console.log('Data received: ', data);
-        let message = Buffer.from(data, 'base64').toString();
-        console.log('Message received: ', message);
-
-        if (message === '\0') {
-            //emitter.emit('response');
-            console.log('EOL received');
-            console.log('Full message: ', this.fullMessage);
-            let messageJson = JSON.parse(this.fullMessage);
-            console.log('Command received: ', messageJson.cmd);
-            console.log('Response event: ', messageJson.event);
-            console.log('Response received: ', messageJson.response);
-            this.fullMessage = '';
-            //return;
-        } else {
-            this.fullMessage += message;
+    _onMessage(data) {
+        // Crea un objeto Buffer con los datos que lleguen y los concatena al buffer temporal hasta recibir el caracter nulo
+        dataBuffer = Buffer.concat([dataBuffer, Buffer.from(data, 'base64')]);
+        // Verifica si el buffer temporal contiene el caracter nulo
+        if (dataBuffer.includes(0x00)) { // Caracter nulo indica que se ha terminado de enviar el mensaje
+            // Procesa los datos completos
+            try {
+                let bufWithoutLast = dataBuffer.slice(0, dataBuffer.length - 1);
+                let json = JSON.parse(bufWithoutLast.toString());
+                if (emitter.emit(json.event, JSON.stringify(json.response))) {
+                    //console.log('Event emitted: ', json.event);
+                } else {
+                    //console.log('Event not emitted: ', json.event);
+                }; // In order to release the control from each block
+            } catch (e) { // No es un objeto JSON
+                console.log('No es un objeto JSON', e);
+                return;
+            }
+            // Resetea el buffer para el próximo mensaje
+            dataBuffer = Buffer.alloc(0);
         }
     }
-}
-
-/**
- * Enum for kori events.
- * @readonly
- * @enum {string}
- */
-const KoriEvents = {
-    WAKE: 'wake',
-    TRANSCRIBE: 'transcribe',
-    GENERATE: 'generate',
-    SYNTHESIZE: 'synthesize',
-    PLAY: 'play',
-    TOUCH: 'touch'
 }
 
 /**
@@ -362,18 +455,201 @@ class Scratch3KoriBlocks {
     /**
      * @return {string} - the name of this extension.
      */
-    static get EXTENSION_NAME () {
+    static get EXTENSION_NAME() {
         return 'Assistant';
     }
 
     /**
      * @return {string} - the ID of this extension.
      */
-    static get EXTENSION_ID () {
+    static get EXTENSION_ID() {
         return 'kori';
     }
 
-    get EVENTS_MENU () {
+    get NETWORK_MENU() {
+        return [
+            {
+                text: formatMessage({
+                    id: 'kori.networkMenu.ssid',
+                    default: 'name',
+                    description: 'label for ssid network'
+                }),
+                value: network.SSID
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.networkMenu.psk',
+                    default: 'password',
+                    description: 'label for psk network'
+                }),
+                value: network.PSK
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.networkMenu.ip',
+                    default: 'ip',
+                    description: 'label for ip network'
+                }),
+                value: network.IP
+            }
+        ]
+    }
+
+    get API_MENU() {
+        let menuItems = [
+            {
+                text: formatMessage({
+                    id: 'kori.apiMenu.openai',
+                    default: 'openai',
+                    description: 'label for openai api'
+                }),
+                value: api.OPENAI
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.apiMenu.picovoice',
+                    default: 'picovoice',
+                    description: 'label for picovoice api'
+                }),
+                value: api.PICOVOICE
+            }
+        ];
+        return menuItems;
+    }
+
+    get LISTEN_MENU() {
+        return [
+            {
+                text: formatMessage({
+                    id: 'kori.listenMenu.model',
+                    default: 'model',
+                    description: 'label for model listen'
+                }),
+                value: listen.MODEL
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.listenMenu.language',
+                    default: 'language',
+                    description: 'label for language listen'
+                }),
+                value: listen.LANGUAGE
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.listenMenu.temperature',
+                    default: 'temperature',
+                    description: 'label for temperature listen'
+                }),
+                value: listen.TEPERATURE
+            }
+        ]
+    }
+
+    get THINK_MENU() {
+        return [
+            {
+                text: formatMessage({
+                    id: 'kori.thinkMenu.model',
+                    default: 'model',
+                    description: 'label for model think'
+                }),
+                value: think.MODEL
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.thinkMenu.assistantId',
+                    default: 'assistantId',
+                    description: 'label for assistantId think'
+                }),
+                value: think.ASSISTANT_ID
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.thinkMenu.instructions',
+                    default: 'instructions',
+                    description: 'label for instructions think'
+                }),
+                value: think.INSTRUCTIONS
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.thinkMenu.temperature',
+                    default: 'temperature',
+                    description: 'label for temperature think'
+                }),
+                value: think.TEPERATURE
+            }
+        ]
+    }
+
+    get SPEAK_MENU() {
+        return [
+            {
+                text: formatMessage({
+                    id: 'kori.speakMenu.model',
+                    default: 'model',
+                    description: 'label for model speak'
+                }),
+                value: speak.MODEL
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.speakMenu.voice',
+                    default: 'voice',
+                    description: 'label for voice speak'
+                }),
+                value: speak.VOICE
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.speakMenu.speed',
+                    default: 'speed',
+                    description: 'label for speed speak'
+                }),
+                value: speak.SPEED
+            }
+        ]
+    }
+
+    get PERSONALIZATION_MENU() {
+        return [
+            {
+                text: formatMessage({
+                    id: 'kori.personalizationMenu.name',
+                    default: 'name',
+                    description: 'label for name personalization'
+                }),
+                value: personalization.NAME
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.personalization.gender',
+                    default: 'gender',
+                    description: 'label for gender personalization'
+                }),
+                value: personalization.GENDER
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.personalization.type',
+                    default: 'type',
+                    description: 'label for type personalization'
+                }),
+                value: personalization.TYPE
+            },
+            {
+                text: formatMessage({
+                    id: 'kori.personalization.wakeWord',
+                    default: 'wake word',
+                    description: 'label for wake word personalization'
+                }),
+                value: personalization.WAKE_WORD
+            }
+        ]
+    }
+
+    get EVENTS_MENU() {
         return [
             {
                 text: formatMessage({
@@ -430,7 +706,7 @@ class Scratch3KoriBlocks {
      * Construct a set of Kori blocks.
      * @param {Runtime} runtime - the Scratch 3.0 runtime.
      */
-    constructor (runtime) {
+    constructor(runtime) {
         /**
          * The Scratch 3.0 runtime.
          * @type {Runtime}
@@ -444,7 +720,7 @@ class Scratch3KoriBlocks {
     /**
      * @returns {object} metadata for this extension and its blocks.
      */
-    getInfo () {
+    getInfo() {
         return {
             id: Scratch3KoriBlocks.EXTENSION_ID,
             color1: '#FF9E91',
@@ -454,6 +730,7 @@ class Scratch3KoriBlocks {
             blockIconURI: blockIconURI,
             showStatusButton: true,
             blocks: [
+                /*
                 {
                     opcode: 'whenEvent',
                     text: formatMessage({
@@ -470,25 +747,113 @@ class Scratch3KoriBlocks {
                         }
                     }
                 },
+                */
                 {
-                    opcode: 'displayText',
+                    opcode: 'getConfig',
                     text: formatMessage({
-                        id: 'kori.displayText',
-                        default: 'display text [TEXT]',
-                        description: 'display text on the kori display'
+                        id: 'kori.getConfig',
+                        default: 'get config',
+                        description: 'get the configuration and set it to the blocks'
                     }),
-                    blockType: BlockType.COMMAND,
+                    blockType: BlockType.COMMAND
+                },
+                {
+                    opcode: 'getNetwork',
+                    text: formatMessage({
+                        id: 'kori.getNetwork',
+                        default: 'network [NETWORK_PARAMETER]',
+                        description: 'Get the network information'
+                    }),
+                    blockType: BlockType.REPORTER,
                     arguments: {
-                        TEXT: {
+                        NETWORK_PARAMETER: {
                             type: ArgumentType.STRING,
-                            defaultValue: formatMessage({
-                                id: 'kori.defaultTextToDisplay',
-                                default: 'Hello!',
-                                description: `default text to display.`
-                            })
+                            menu: 'network',
+                            defaultValue: network.SSID
                         }
                     }
                 },
+                {
+                    opcode: 'getAPI',
+                    text: formatMessage({
+                        id: 'kori.getAPI',
+                        default: 'api [API_PARAMETER]',
+                        description: 'Get the api information'
+                    }),
+                    blockType: BlockType.REPORTER,
+                    arguments: {
+                        API_PARAMETER: {
+                            type: ArgumentType.STRING,
+                            menu: 'api',
+                            defaultValue: api.OPENAI
+                        }
+                    }
+                },
+                {
+                    opcode: 'getListen',
+                    text: formatMessage({
+                        id: 'kori.getListen',
+                        default: 'listen [LISTEN_PARAMETER]',
+                        description: 'Get the listen information'
+                    }),
+                    blockType: BlockType.REPORTER,
+                    arguments: {
+                        LISTEN_PARAMETER: {
+                            type: ArgumentType.STRING,
+                            menu: 'listen',
+                            defaultValue: listen.MODEL
+                        }
+                    }
+                },
+                {
+                    opcode: 'getThink',
+                    text: formatMessage({
+                        id: 'kori.getThink',
+                        default: 'think [THINK_PARAMETER]',
+                        description: 'Get the think information'
+                    }),
+                    blockType: BlockType.REPORTER,
+                    arguments: {
+                        THINK_PARAMETER: {
+                            type: ArgumentType.STRING,
+                            menu: 'think',
+                            defaultValue: think.MODEL
+                        }
+                    }
+                },
+                {
+                    opcode: 'getSpeak',
+                    text: formatMessage({
+                        id: 'kori.getSpeak',
+                        default: 'speak [SPEAK_PARAMETER]',
+                        description: 'Get the speak information'
+                    }),
+                    blockType: BlockType.REPORTER,
+                    arguments: {
+                        SPEAK_PARAMETER: {
+                            type: ArgumentType.STRING,
+                            menu: 'speak',
+                            defaultValue: speak.MODEL
+                        }
+                    }
+                },
+                {
+                    opcode: 'getPersonalization',
+                    text: formatMessage({
+                        id: 'kori.getPersonalization',
+                        default: 'personalization [PERSONALIZATION_PARAMETER]',
+                        description: 'Get the personalization information'
+                    }),
+                    blockType: BlockType.REPORTER,
+                    arguments: {
+                        PERSONALIZATION_PARAMETER: {
+                            type: ArgumentType.STRING,
+                            menu: 'personalization',
+                            defaultValue: personalization.NAME
+                        }
+                    }
+                },
+                '---',
                 {
                     opcode: 'ask',
                     text: formatMessage({
@@ -507,18 +872,80 @@ class Scratch3KoriBlocks {
                             })
                         }
                     }
-                }
+                },
+                {
+                    opcode: 'getAnswer',
+                    text: formatMessage({
+                        id: 'kori.getAnswer',
+                        default: 'answer',
+                        description: 'get the answer'
+                    }),
+                    blockType: BlockType.REPORTER
+                },
+                '---',
+                {
+                    opcode: 'synthesize',
+                    text: formatMessage({
+                        id: 'kori.synthesize',
+                        default: 'synthesize [TEXT]',
+                        description: 'synthesize text'
+                    }),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        TEXT: {
+                            type: ArgumentType.STRING,
+                            defaultValue: formatMessage({
+                                id: 'kori.defaultText',
+                                default: 'Hello, world!',
+                                description: 'default text to synthesize'
+                            })
+                        }
+                    }
+                },
+                {
+                    opcode: 'speak',
+                    text: formatMessage({
+                        id: 'kori.speak',
+                        default: 'speak',
+                        description: 'speak the synthesized text'
+                    }),
+                    blockType: BlockType.COMMAND,
+                },
             ],
             menus: {
+                network: {
+                    acceptReporters: false,
+                    items: this.NETWORK_MENU
+                },
+                api: {
+                    acceptReporters: false,
+                    items: this.API_MENU
+                },
+                listen: {
+                    acceptReporters: false,
+                    items: this.LISTEN_MENU
+                },
+                think: {
+                    acceptReporters: false,
+                    items: this.THINK_MENU
+                },
+                speak: {
+                    acceptReporters: false,
+                    items: this.SPEAK_MENU
+                },
+                personalization: {
+                    acceptReporters: false,
+                    items: this.PERSONALIZATION_MENU
+                },
                 events: {
-                    acceptReporters: true,
+                    acceptReporters: false,
                     items: this.EVENTS_MENU
                 },
             }
         };
     }
 
-    whenEvent (args) {
+    whenEvent(args) {
         const event = cast.toString(args.EVENT);
         if (event === 'wake') {
             return (this._peripheral.gestureState >> 3) & 1;
@@ -536,39 +963,200 @@ class Scratch3KoriBlocks {
         return false;
     }
 
+    getNetwork(args) {
+        const networkParameter = cast.toString(args.NETWORK_PARAMETER);
+        if (networkParameter === network.SSID) {
+            return this._peripheral._network.ssid;
+        } else if (networkParameter === network.PSK) {
+            return this._peripheral._network.psk;
+        } else if (networkParameter === network.IP) {
+            return this._peripheral._network.ip;
+        }
+        return 'ERROR';
+    }
+
+    getAPI(args) {
+        const apiParameter = cast.toString(args.API_PARAMETER);
+        if (apiParameter === api.OPENAI) {
+            return this._peripheral._api.openai;
+        } else if (apiParameter === api.PICOVOICE) {
+            return this._peripheral._api.picovoice;
+        }
+        return 'ERROR';
+    }
+
+    getListen(args) {
+        const listenParameter = cast.toString(args.LISTEN_PARAMETER);
+        if (listenParameter === listen.MODEL) {
+            return this._peripheral._listen.model;
+        } else if (listenParameter === listen.LANGUAGE) {
+            return this._peripheral._listen.language;
+        } else if (listenParameter === listen.TEPERATURE) {
+            return this._peripheral._listen.temperature;
+        }
+        return 'ERROR';
+    }
+
+    getThink(args) {
+        const thinkParameter = cast.toString(args.THINK_PARAMETER);
+        if (thinkParameter === think.MODEL) {
+            return this._peripheral._think.model;
+        } else if (thinkParameter === think.ASSISTANT_ID) {
+            return this._peripheral._think.assistantId;
+        } else if (thinkParameter === think.INSTRUCTIONS) {
+            return this._peripheral._think.instructions;
+        } else if (thinkParameter === think.TEPERATURE) {
+            return this._peripheral._think.temperature;
+        }
+        return 'ERROR';
+    }
+
+    getSpeak(args) {
+        const speakParameter = cast.toString(args.SPEAK_PARAMETER);
+        if (speakParameter === speak.MODEL) {
+            return this._peripheral._speak.model;
+        } else if (speakParameter === speak.VOICE) {
+            return this._peripheral._speak.voice;
+        } else if (speakParameter === speak.SPEED) {
+            return this._peripheral._speak.speed;
+        }
+        return 'ERROR';
+    }
+
+    getPersonalization(args) {
+        const personalizationParameter = cast.toString(args.PERSONALIZATION_PARAMETER);
+        if (personalizationParameter === personalization.NAME) {
+            return this._peripheral._personalization.name;
+        } else if (personalizationParameter === personalization.GENDER) {
+            return this._peripheral._personalization.gender;
+        }
+        else if (personalizationParameter === personalization.TYPE) {
+            return this._peripheral._personalization.type;
+        }
+        else if (personalizationParameter === personalization.WAKE_WORD) {
+            return this._peripheral._personalization.wakeWord;
+        }
+        return 'ERROR';
+    }
+
     /**
-     * Display text on the 5x5 LED matrix.
-     * @param {object} args - the block's arguments.
-     * @return {Promise} - a Promise that resolves after the text is done printing.
-     * Note the limit is 19 characters
-     * The print time is calculated by multiplying the number of horizontal pixels
-     * by the default scroll delay of 120ms.
-     * The number of horizontal pixels = 6px for each character in the string,
-     * 1px before the string, and 5px after the string.
+     *  Get the configuration from the peripheral
+     * @returns {Promise} - a Promise that resolves when the configuration is received
      */
-    displayText (args) {
-        // const text = String(args.TEXT).substring(0, 19);
-        const text = args.TEXT;
-        if (text.length > 0) this._peripheral.displayText(text);
-        //const yieldDelay = 120 * ((6 * text.length) + 6);
-        const yieldDelay = 0;
+    getConfig() {
+        eventIndex++;
+        const text = JSON.stringify({
+            event: `event${eventIndex}`,
+            cmd: "get_config",
+            args: {
+            }
+        });
 
         return new Promise(resolve => {
-            setTimeout(() => {
-                resolve();
-            }, yieldDelay);
+            this._peripheral.displayText(text)
+                .then(() => {
+                    emitter.once(`event${eventIndex}`, (res) => {
+                        const resJson = JSON.parse(res);
+
+                        //console.log('Config received: ', JSON.stringify(resJson, null, 3));
+
+                        // Network
+                        //this._peripheral._network.ssid = resJson.network.ssid;
+                        //this._peripheral._network.psk = resJson.network.psk;
+                        //this._peripheral._network.ip = resJson.network.ip;
+
+                        // Personalization
+                        this._peripheral._personalization.wakeWord = resJson.device.wakeword;
+                        this._peripheral._personalization.name = resJson.device.name;
+                        this._peripheral._personalization.gender = resJson.device.gender;
+                        this._peripheral._personalization.type = resJson.device.type;
+
+                        // API
+                        this._peripheral._api.openai = resJson.services.openAI.apiKey;
+                        this._peripheral._api.picovoice = resJson.services.picoVoice.apiKey;
+
+                        // Listen
+                        this._peripheral._listen.model = resJson.services.openAI.whisper.model;
+                        this._peripheral._listen.language = resJson.services.openAI.whisper.language;
+                        this._peripheral._listen.temperature = resJson.services.openAI.whisper.temperature;
+
+                        // Think
+                        this._peripheral._think.model = resJson.services.openAI.chatGPT.model;
+                        this._peripheral._think.assistantId = resJson.services.openAI.chatGPT.assistantId;
+                        this._peripheral._think.instructions = resJson.services.openAI.chatGPT.instructions;
+                        this._peripheral._think.temperature = resJson.services.openAI.chatGPT.temperature;
+
+                        // Speak
+                        this._peripheral._speak.model = resJson.services.openAI.tts.model;
+                        this._peripheral._speak.voice = resJson.services.openAI.tts.voice;
+                        this._peripheral._speak.speed = resJson.services.openAI.tts.speed;
+
+                        resolve('INITIALIZED');
+                    });
+                });
         });
+    }
+
+    /**
+     * 
+     * @returns {string} - the answer
+     */
+    getAnswer() {
+        return 'Hello';
     }
 
     /**
      * 
      * @param {object} args 
      */
-    ask (args) {
+    ask(args) {
         const question = cast.toString(args.QUESTION);
         //const event = KoriEvents.WAKE;
         //this._peripheral.send(event, question);
         console.log(question);
+    }
+
+    /**
+     * 
+     * @param {object} args 
+     */
+    synthesize(args) {
+        const text = cast.toString(args.TEXT);
+        eventIndex++;
+        const event = `event${eventIndex}`;
+        const cmd = 'synthesize';
+        const argsJson = {
+            text: text
+        };
+        const textJson = JSON.stringify({
+            event: event,
+            cmd: cmd,
+            args: argsJson
+        });
+        console.log('Synthesize: ', args.TEXT);
+        this._peripheral.displayText(textJson);
+    }
+
+    /**
+     * 
+     */
+    speak() {
+        eventIndex++;
+        const event = `event${eventIndex}`;
+        const cmd = 'speak';
+        const argsJson = {};
+        const textJson = JSON.stringify({
+            event: event,
+            cmd: cmd,
+            args: argsJson
+        });
+
+        this._peripheral._ble.read(BLEUUID.service, BLEUUID.rxChar, true).then(() => {
+            console.log('Reading from BLE');
+            
+        });
+
+        //this._peripheral.displayText(textJson);
     }
 }
 
